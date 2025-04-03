@@ -485,7 +485,7 @@ def get_embeddings_model():
    try:
        model = HuggingFaceEmbeddings(
            model_name="all-MiniLM-L6-v2",
-           model_kwargs={'device': 'cuda'},
+           model_kwargs={'device': 'cpu'},
            encode_kwargs={'normalize_embeddings': True}
        )
        # Test the model
