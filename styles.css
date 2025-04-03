@@ -1,0 +1,131 @@
+/* styles.css */
+
+/* Global Styling */
+body {
+    font-family: 'Inter', 'Segoe UI', Roboto, Helvetica, sans-serif;
+    color: #2c3e50;
+}
+
+/* Login/Signup Container Styling */
+.auth-container {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    margin: 2rem auto;
+    max-width: 450px;
+    transition: all 0.3s ease;
+}
+
+.auth-container:hover {
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: 2rem;
+    color: #4361ee;
+}
+
+/* Input Field Styling */
+input[type="text"],
+input[type="password"],
+input[type="email"] {
+    width: 100%;
+    padding: 12px 15px;
+    margin: 8px 0;
+    display: inline-block;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-sizing: border-box;
+    transition: border-color 0.3s;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus {
+    border-color: #4361ee;
+    outline: none;
+}
+
+/* Button Styling */
+.stButton > button {
+    background-color: #4361ee;
+    color: white;
+    padding: 12px 20px;
+    margin: 10px 0;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.stButton > button:hover {
+    background-color: #3a56d4;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Chatbot Interface Styling */
+.chat-message {
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    position: relative;
+    animation: fadeIn 0.3s;
+}
+
+.user-message {
+    background-color: #f0f7ff;
+    border-left: 4px solid #4361ee;
+}
+
+.assistant-message {
+    background-color: #f8f9fa;
+    border-left: 4px solid #20c997;
+}
+
+/* Star Rating System */
+.rating-system {
+    display: flex;
+    justify-content: center;
+    margin: 10px 0;
+}
+
+.star-button {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #ddd;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.star-button:hover, 
+.star-button.active {
+    color: #ffc107;
+}
+
+/* Sidebar Enhancements */
+.sidebar .sidebar-content {
+    background-color: #f8f9fa;
+    padding: 1.5rem;
+}
+
+.sidebar-title {
+    color: #4361ee;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.sidebar-info {
+    background-color: white;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Responsive Design */
+@media screen and (max-width: 768px)
