@@ -1221,7 +1221,7 @@ Document Content:
 {doc_chunks}
 
 Web Sources:
-{[f"Source: {content['url']}\n{content['content']}" for content in web_content]}
+{[f"Source: {content['url']}" + "\n" + f"{content['content']}" for content in web_content]}
 
 Please provide a detailed response following this structure:
 
