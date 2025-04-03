@@ -45,6 +45,146 @@ import uuid
 import base64
 from PIL import Image
 # ------- Authentication System -------
+# Add these functions for database operations
+
+def init_chat_database(username):
+    """Initialize or connect to the user's chat database"""
+    user_dir = get_user_data_dir(username)
+    db_path = user_dir / "chat_history.db"
+    
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Create messages table if it doesn't exist
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        code TEXT,
+        results TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
+    conn.commit()
+    return conn
+
+def save_chat_history_to_db(username):
+    """Save current chat history to SQLite database"""
+    if not is_authenticated() or not st.session_state.messages:
+        return False
+    
+    try:
+        # Connect to database
+        conn = init_chat_database(username)
+        cursor = conn.cursor()
+        
+        # Clear existing messages to avoid duplicates
+        cursor.execute("DELETE FROM messages")
+        
+        # Insert all current messages
+        for msg in st.session_state.messages:
+            cursor.execute(
+                "INSERT INTO messages (role, content, code, results) VALUES (?, ?, ?, ?)",
+                (
+                    msg["role"],
+                    msg.get("content", ""),
+                    msg.get("code", None),
+                    str(msg.get("results", "")) if msg.get("results") else None
+                )
+            )
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"Error saving chat history to database: {e}")
+        return False
+
+def load_chat_history_from_db(username):
+    """Load chat history from SQLite database"""
+    if not username:
+        return []
+    
+    try:
+        user_dir = get_user_data_dir(username)
+        db_path = user_dir / "chat_history.db"
+        
+        if not db_path.exists():
+            return []
+            
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Fetch all messages ordered by id (chronological order)
+        cursor.execute("SELECT role, content, code, results FROM messages ORDER BY id")
+        messages = []
+        
+        for row in cursor.fetchall():
+            role, content, code, results = row
+            message = {"role": role, "content": content}
+            
+            if code:
+                message["code"] = code
+                
+            if results and results != "None":
+                message["results"] = results
+                
+            messages.append(message)
+        
+        conn.close()
+        return messages
+    except Exception as e:
+        st.error(f"Error loading chat history from database: {e}")
+        return []
+
+def clear_chat_history_db(username):
+    """Clear all chat history for a user from the database"""
+    if not username:
+        return False
+    
+    try:
+        user_dir = get_user_data_dir(username)
+        db_path = user_dir / "chat_history.db"
+        
+        if not db_path.exists():
+            return True
+            
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Delete all messages
+        cursor.execute("DELETE FROM messages")
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"Error clearing chat history from database: {e}")
+        return False
+
+# Modify the authenticate function to load chat history from DB
+def authenticate(username, password):
+    """Authenticate a user and load their previous chat history"""
+    users = load_users()
+    if username in users and users[username]["password"] == hash_password(password):
+        st.session_state.authenticated = True
+        st.session_state.username = username
+        
+        # Load previous chat history from database
+        if "messages" in st.session_state:
+            prev_messages = load_chat_history_from_db(username)
+            if prev_messages:
+                st.session_state.messages = prev_messages
+                st.session_state.db_loaded = True  # Flag to indicate DB was loaded
+            else:
+                st.session_state.messages = []
+                st.session_state.db_loaded = False
+        
+        return True
+    return False
+# ------- Authentication System -------
 
 def load_users():
     """Load existing users from the JSON file"""
@@ -66,14 +206,14 @@ def is_authenticated():
     """Check if user is authenticated"""
     return 'authenticated' in st.session_state and st.session_state.authenticated
 
-def authenticate(username, password):
-    """Authenticate a user"""
-    users = load_users()
-    if username in users and users[username]["password"] == hash_password(password):
-        st.session_state.authenticated = True
-        st.session_state.username = username
-        return True
-    return False
+# def authenticate(username, password):
+#     # """Authenticate a user"""
+#     # users = load_users()
+#     # if username in users and users[username]["password"] == hash_password(password):
+#     #     st.session_state.authenticated = True
+#     #     st.session_state.username = username
+#     #     return True
+#     # return False
 
 def create_account(username, password, email):
     """Create a new user account"""
@@ -188,8 +328,8 @@ def show_login_page():
     """Display the login page"""
     add_logo_and_background()
     
-    st.markdown("<h1 class='app-title'>P2P Assistant</h1>", unsafe_allow_html=True)
-    st.markdown("<p class='app-subtitle'>Your Oracle Payables Expert</p>", unsafe_allow_html=True)
+    st.markdown("<h1 class='app-title'>Oracle EBS Assistant</h1>", unsafe_allow_html=True)
+    st.markdown("<p class='app-subtitle'>Your Oracle EBS Expert</p>", unsafe_allow_html=True)
     
     # Login container
     st.markdown("<div class='auth-container'>", unsafe_allow_html=True)
@@ -226,14 +366,14 @@ def show_login_page():
     
     # Add some information about the app below the login form
     st.markdown("---")
-    st.markdown("### About P2P Assistant")
+    st.markdown("### About Oracle EBS Assistant")
     
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("""
-        - Get instant answers about Oracle Payables
+        - Get instant answers about Oracle 
         - Query database tables and schemas
-        - Learn P2P processes and best practices
+        - Learn EBS processes and best practices
         - Access official documentation
         """)
     with col2:
@@ -250,8 +390,8 @@ def show_signup_page():
     """Display the signup page"""
     add_logo_and_background()
     
-    st.markdown("<h1 class='app-title'>P2P Assistant</h1>", unsafe_allow_html=True)
-    st.markdown("<p class='app-subtitle'>Your Oracle Payables Expert</p>", unsafe_allow_html=True)
+    st.markdown("<h1 class='app-title'>Oracle EBS Assistant</h1>", unsafe_allow_html=True)
+    st.markdown("<p class='app-subtitle'>Your Oracle EBS Expert</p>", unsafe_allow_html=True)
     
     # Signup container
     st.markdown("<div class='auth-container'>", unsafe_allow_html=True)
@@ -311,6 +451,126 @@ def show_profile_component():
             # Add some visual separator
             st.sidebar.markdown("---")
 
+# ------- User-Specific Data Management -------
+
+def get_user_data_dir(username):
+    """Create and return user-specific data directory"""
+    user_dir = Path(f"user_data/{username}")
+    user_dir.mkdir(parents=True, exist_ok=True)
+    return user_dir
+
+def save_chat_history_to_docx(username):
+    """Save the current chat history to a DOCX file for the user"""
+    if not is_authenticated() or not st.session_state.messages:
+        return False
+    
+    try:
+        # Create user directory
+        user_dir = get_user_data_dir(username)
+        
+        # Create a new Document
+        doc = Document()
+        
+        # Add title
+        doc.add_heading(f'Chat History for {username}', 0)
+        doc.add_paragraph(f'Generated on: {time.strftime("%Y-%m-%d %H:%M:%S")}')
+        doc.add_paragraph('')
+        
+        # Add each message
+        for msg in st.session_state.messages:
+            # Add role as a heading
+            doc.add_heading(f"{msg['role'].capitalize()}", level=2)
+            
+            # Add content
+            doc.add_paragraph(msg['content'])
+            
+            # Add code if available
+            if msg.get('code'):
+                p = doc.add_paragraph('Code: ')
+                p.add_run(msg['code']).font.name = 'Courier New'
+            
+            # Add results if available
+            if msg.get('results'):
+                doc.add_paragraph(f'Results: {str(msg["results"])}')
+            
+            # Add a separator
+            doc.add_paragraph('---')
+        
+        # Save the document
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        filename = f"chat_history_{timestamp}.docx"
+        filepath = user_dir / filename
+        doc.save(filepath)
+        
+        return str(filepath)
+    except Exception as e:
+        st.error(f"Error saving chat history: {e}")
+        return False
+
+def save_feedback_to_docx(username):
+    """Save the feedback data to a DOCX file for the user"""
+    if not is_authenticated() or not st.session_state.feedback_data:
+        return False
+    
+    try:
+        # Create user directory
+        user_dir = get_user_data_dir(username)
+        
+        # Create a new Document
+        doc = Document()
+        
+        # Add title
+        doc.add_heading(f'Feedback Data for {username}', 0)
+        doc.add_paragraph(f'Generated on: {time.strftime("%Y-%m-%d %H:%M:%S")}')
+        doc.add_paragraph('')
+        
+        # Add each feedback entry
+        for msg_id, data in st.session_state.feedback_data.items():
+            # Add query as a heading
+            doc.add_heading(f"Query: {data.get('query', 'Unknown')}", level=2)
+            
+            # Add rating
+            if 'rating' in data:
+                doc.add_paragraph(f"Rating: {data['rating']}/5 stars")
+            
+            # Add content
+            if 'content' in data:
+                doc.add_paragraph(f"Response: {data['content']}")
+            
+            # Add code if available
+            if data.get('code'):
+                p = doc.add_paragraph('Code: ')
+                p.add_run(data['code']).font.name = 'Courier New'
+            
+            # Add results if available
+            if data.get('results'):
+                doc.add_paragraph(f'Results: {data["results"]}')
+            
+            # Add context if available
+            if data.get('context'):
+                doc.add_paragraph(f'Context: {data["context"]}')
+            
+            # Add a separator
+            doc.add_paragraph('---')
+        
+        # Save the document
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        filename = f"feedback_data_{timestamp}.docx"
+        filepath = user_dir / filename
+        doc.save(filepath)
+        
+        return str(filepath)
+    except Exception as e:
+        st.error(f"Error saving feedback data: {e}")
+        return False
+
+def get_user_embedding_dir(username):
+    """Get the embedding directory path for a specific user"""
+    user_dir = get_user_data_dir(username)
+    embed_dir = user_dir / "embeddings"
+    embed_dir.mkdir(exist_ok=True)
+    return embed_dir
+
 # ------- Original P2P Chatbot Logic -------
 
 # API Keys
@@ -353,6 +613,9 @@ if "detected_table" not in st.session_state:
 if "show_signup" not in st.session_state:
     st.session_state["show_signup"] = False
 
+if "last_autosave" not in st.session_state:
+    st.session_state.last_autosave = time.time()
+
 # File to store feedback data
 FEEDBACK_FILE = "feedback_data.json"
 
@@ -360,14 +623,21 @@ FEEDBACK_FILE = "feedback_data.json"
 COMMON_WORDS = ["GIVE", "SHOW", "LIST", "DISPLAY", "GET", "FIND", "TELL", "FETCH", "PROVIDE", 
                "THE", "FOR", "FROM", "COLUMNS", "FIELDS", "TABLE", "TABLES", "COLUMN", "FIELD","WHAT"]
 
-# All other existing functions from the original code remain the same
-# Just import them as they are. For this example, we'll recreate the main function
-# to include authentication flow
-
+# Updated feedback data loading
 def load_feedback_data():
-    """Load feedback data from file if it exists"""
+    """Load feedback data from file if it exists, with user-specific support"""
     try:
-        if os.path.exists(FEEDBACK_FILE):
+        if is_authenticated() and not st.session_state.demo_mode:
+            # User-specific feedback file
+            username = st.session_state.username
+            user_dir = get_user_data_dir(username)
+            feedback_file = user_dir / "feedback_data.json"
+            
+            if feedback_file.exists():
+                with open(feedback_file, 'r') as f:
+                    return json.load(f)
+        elif os.path.exists(FEEDBACK_FILE):
+            # Global feedback file (for demo mode or backward compatibility)
             with open(FEEDBACK_FILE, 'r') as f:
                 return json.load(f)
     except Exception as e:
@@ -375,10 +645,23 @@ def load_feedback_data():
     return {}
 
 def save_feedback_data():
-    """Save feedback data to file with error handling"""
+    """Save feedback data to file with error handling and user-specific support"""
     try:
-        with open(FEEDBACK_FILE, 'w') as f:
-            json.dump(st.session_state.feedback_data, f)
+        if is_authenticated() and not st.session_state.demo_mode:
+            # User-specific feedback file
+            username = st.session_state.username
+            user_dir = get_user_data_dir(username)
+            feedback_file = user_dir / "feedback_data.json"
+            
+            with open(feedback_file, 'w') as f:
+                json.dump(st.session_state.feedback_data, f)
+                
+            # Also save as DOCX for readability
+            save_feedback_to_docx(username)
+        else:
+            # Global feedback file (for demo mode or backward compatibility)
+            with open(FEEDBACK_FILE, 'w') as f:
+                json.dump(st.session_state.feedback_data, f)
         return True
     except Exception as e:
         st.error(f"Error saving feedback data: {e}")
@@ -480,25 +763,36 @@ def display_chat_message(role, content, code=None, results=None, recommendations
                     st.rerun()
 
 @st.cache_resource
-def get_embeddings_model():
-   """Initialize and cache the embedding model"""
-   try:
-       model = HuggingFaceEmbeddings(
-           model_name="all-MiniLM-L6-v2",
-           model_kwargs={'device': 'cpu'},
-           encode_kwargs={'normalize_embeddings': True}
-       )
-       # Test the model
-       test_embedding = model.embed_query("test")
-       if test_embedding is None:
-           raise ValueError("Embeddings model failed to generate embeddings")
-       return model
-   except Exception as e:
-       st.error(f"Failed to initialize embeddings model: {str(e)}")
-       return None
+def get_embeddings_model(username=None):
+    """Initialize and cache the embedding model with user-specific caching"""
+    try:
+        # If no username provided, use the default model
+        if username is None or not is_authenticated():
+            model = HuggingFaceEmbeddings(
+                model_name="all-MiniLM-L6-v2",
+                model_kwargs={'device': 'cuda'},
+                encode_kwargs={'normalize_embeddings': True}
+            )
+        else:
+            # Use the same model but note that we're using different parameters
+            # to ensure a unique cache entry per user
+            model = HuggingFaceEmbeddings(
+                model_name="all-MiniLM-L6-v2",
+                model_kwargs={'device': 'cuda'},
+                encode_kwargs={'normalize_embeddings': True}
+            )
+        
+        # Test the model
+        test_embedding = model.embed_query("test")
+        if test_embedding is None:
+            raise ValueError("Embeddings model failed to generate embeddings")
+        return model
+    except Exception as e:
+        st.error(f"Failed to initialize embeddings model: {str(e)}")
+        return None
 
 def process_doc():
-    """Process multiple hardcoded DOCX files and store their content"""
+    """Process multiple hardcoded DOCX files and store their content with user-specific storage"""
     try:
         # List of DOCX files to process (hardcoded)
         doc_files = [
@@ -550,7 +844,7 @@ def process_doc():
                 
                 total_paragraphs += len(doc.paragraphs)
                 
-                st.success(f"Processed: {doc_filename}")
+                # st.success(f"Processed: {doc_filename}")
                 
             except Exception as e:
                 st.error(f"Error processing {doc_filename}: {str(e)}")
@@ -575,6 +869,44 @@ def process_doc():
             'files': file_summaries,
             'summary': f"Processed {len(file_summaries)} documents with {total_paragraphs} paragraphs and {len(chunks)} text chunks."
         }
+        
+        # Check if user-specific embeddings exist
+        if is_authenticated() and not st.session_state.demo_mode:
+            username = st.session_state.username
+            user_embed_dir = get_user_embedding_dir(username)
+            
+            # Check if user embeddings already exist
+            embeddings_exist = (user_embed_dir / "chroma.sqlite3").exists()
+            
+            if embeddings_exist:
+                try:
+                    # Load existing embeddings
+                    embeddings_model = get_embeddings_model(username)
+                    st.session_state.vectorstore = Chroma(
+                        persist_directory=str(user_embed_dir),
+                        embedding_function=embeddings_model
+                    )
+                    # st.info(f"Loaded existing embeddings for user {username}")
+                except Exception as e:
+                    st.error(f"Error loading existing embeddings: {e}")
+                    embeddings_exist = False
+            
+            if not embeddings_exist:
+                # Create new embeddings for this user
+                try:
+                    with st.spinner("Creating embeddings for your account..."):
+                        embeddings_model = get_embeddings_model(username)
+                        st.session_state.vectorstore = Chroma(
+                            persist_directory=str(user_embed_dir),
+                            embedding_function=embeddings_model
+                        )
+                        # Add documents to vectorstore
+                        st.session_state.vectorstore.add_texts(
+                            texts=chunks
+                        )
+                        st.success("User embeddings created successfully!")
+                except Exception as e:
+                    st.error(f"Failed to create user embeddings: {e}")
         
         return True
     except Exception as e:
@@ -688,8 +1020,10 @@ def get_relevant_chunks(query, doc_data):
         return []
 
     try:
+        username = st.session_state.username if is_authenticated() else None
+        
         # Get cached embedding model
-        embeddings_model = get_embeddings_model()
+        embeddings_model = get_embeddings_model(username)
         if embeddings_model is None:
             st.error("Failed to initialize embeddings model")
             return []
@@ -698,12 +1032,17 @@ def get_relevant_chunks(query, doc_data):
         if "vectorstore" not in st.session_state or st.session_state.vectorstore is None:
             with st.spinner("Creating embeddings..."):
                 try:
-                    # Create ChromaDB directory if it doesn't exist
-                    os.makedirs("./chroma_db", exist_ok=True)
+                    # Determine the persistence directory
+                    if is_authenticated() and not st.session_state.demo_mode:
+                        persist_dir = str(get_user_embedding_dir(st.session_state.username))
+                    else:
+                        # Create ChromaDB directory if it doesn't exist
+                        os.makedirs("./chroma_db", exist_ok=True)
+                        persist_dir = "./chroma_db"
                     
                     # Create new vectorstore with persist
                     st.session_state.vectorstore = Chroma(
-                        persist_directory="./chroma_db",
+                        persist_directory=persist_dir,
                         embedding_function=embeddings_model
                     )
                     
@@ -845,7 +1184,7 @@ def generate_enhanced_response(query, doc_chunks, web_content, table_name=None):
         chat_history = "\n".join([f"{msg['role'].capitalize()}: {msg['content']}" for msg in recent_messages])
 
     prompt = f"""
-You are an expert AI assistant specializing in Oracle Payables, Indian Localization, SQL query generation, and P2P processes. You have access to the following resources:
+You are an expert AI assistant specializing in Oracle EBS, Oracle Payables, Indian Localization, SQL query generation, and P2P processes. You have access to the following resources:
 1. Oracle Payables User Guide.
 2. India Localization User Guide and Implementation.
 3. Web content via Google Custom Search API.
@@ -941,7 +1280,7 @@ If information conflicts between sources, explain the differences and recommend 
 
 def main():
     # Configure page settings
-    st.set_page_config(page_title="P2P Chatbot", layout="wide")
+    st.set_page_config(page_title="Oracle EBS Chatbot", layout="wide")
     
     # Initialize session state variables for authentication
     if "authenticated" not in st.session_state:
@@ -952,6 +1291,15 @@ def main():
         
     if "show_signup" not in st.session_state:
         st.session_state.show_signup = False
+        
+    if "last_autosave" not in st.session_state:
+        st.session_state.last_autosave = time.time()
+    
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    
+    if "db_loaded" not in st.session_state:
+        st.session_state.db_loaded = False
     
     # Display the appropriate page based on authentication state
     if not is_authenticated():
@@ -967,10 +1315,14 @@ def main():
         # Display demo mode warning if applicable
         if st.session_state.demo_mode:
             st.warning("You are in demo mode. Some features may be limited. Sign up for full access.")
+        elif st.session_state.db_loaded:
+ #           st.success("Previous chat history loaded successfully.")
+            # Reset the flag after showing the message
+            st.session_state.db_loaded = False
         
         # Original app title
-        st.title(f"P2P Q&A App (Multiple Documents)")
-        st.caption(f"Welcome, {st.session_state.username}! Ask questions about Oracle Payables processes, concepts, and database tables.")
+        st.title(f"Oracle EBS Q&A App (By - QJ)")
+        st.caption(f"Welcome, {st.session_state.username}! Ask questions related to Oracle EBS.")
         
         # Load feedback data
         if not st.session_state["feedback_data"]:
@@ -979,20 +1331,35 @@ def main():
         # Process DOC files
         if st.session_state["doc_data"] is None:
             if process_doc():
-                st.success("Documents processed successfully!")
-                st.info(st.session_state["doc_data"]["summary"])
+                # st.success("Documents processed successfully!")
+                st.info("Good to go CHIEF!!!..")
                 
-                # Display document details
-                with st.expander("Processed Documents", expanded=True):
-                    for idx, file_info in enumerate(st.session_state["doc_data"]["files"]):
-                        st.write(f"{idx+1}. **{file_info['filename']}** - {file_info['paragraphs']} paragraphs, {file_info['tables']} tables")
+                # # Display document details
+                # with st.expander("Processed Documents", expanded=True):
+                #     for idx, file_info in enumerate(st.session_state["doc_data"]["files"]):
+                #         st.write(f"{idx+1}. **{file_info['filename']}** - {file_info['paragraphs']} paragraphs, {file_info['tables']} tables")
         
         if st.session_state["doc_data"] is not None:
             # Display documents in the sidebar
             with st.sidebar:
-                st.markdown("### Available Documents")
-                for idx, file_info in enumerate(st.session_state["doc_data"]["files"]):
-                    st.write(f"{idx+1}. {file_info['filename']}")
+                #st.markdown("### Available Documents")
+                #for idx, file_info in enumerate(st.session_state["doc_data"]["files"]):
+                    #st.write(f"{idx+1}. {file_info['filename']}")
+                #st.markdown("---")
+                
+                # Add export buttons for non-demo users
+                if not st.session_state.demo_mode:
+                    st.markdown("### Export User Data")
+                    if st.button("Export Chat History"):
+                        file_path = save_chat_history_to_docx(st.session_state.username)
+                        if file_path:
+                            st.success(f"Chat history saved to: {file_path}")
+                    
+                    if st.button("Export Feedback Data"):
+                        file_path = save_feedback_to_docx(st.session_state.username)
+                        if file_path:
+                            st.success(f"Feedback data saved to: {file_path}")
+                            
                 st.markdown("---")
             
             # Display detected schema and table when available
@@ -1005,16 +1372,28 @@ def main():
                         st.info(f"**Detected Table**: {st.session_state.detected_table or 'None'}")
             
             # Sidebar with feedback history
-            if st.sidebar.checkbox("Show Feedback History"):
-                st.sidebar.markdown("### Feedback History")
-                for msg_id, data in st.session_state.feedback_data.items():
-                    if "rating" in data:
-                        st.sidebar.markdown(f"**Query:** {data.get('query', 'Unknown')}")
-                        st.sidebar.markdown(f"**Rating:** {data.get('rating', 0)}/5 stars")
-                        if data.get('code'):
-                            with st.sidebar.expander("Show Code"):
-                                st.sidebar.code(data['code'], language="python")
-                        st.sidebar.markdown("---")
+            # if st.sidebar.checkbox("Show Feedback History"):
+            #     st.sidebar.markdown("### Feedback History")
+            #     for msg_id, data in st.session_state.feedback_data.items():
+            #         if "rating" in data:
+            #             st.sidebar.markdown(f"**Query:** {data.get('query', 'Unknown')}")
+            #             st.sidebar.markdown(f"**Rating:** {data.get('rating', 0)}/5 stars")
+            #             if data.get('code'):
+            #                 with st.sidebar.expander("Show Code"):
+            #                     st.sidebar.code(data['code'], language="python")
+            #             st.sidebar.markdown("---")
+
+            # Autosave functionality (every 5 minutes)
+            current_time = time.time()
+            if is_authenticated() and not st.session_state.demo_mode and (current_time - st.session_state.last_autosave) > 300:  # 5 minutes
+                # Save chat history to DB
+                save_chat_history_to_db(st.session_state.username)
+                # Save to DOCX occasionally for export purposes
+                save_chat_history_to_docx(st.session_state.username) 
+                # Save feedback data
+                save_feedback_data()
+                # Update last autosave time
+                st.session_state.last_autosave = current_time
 
             # Display chat history
             for i, message in enumerate(st.session_state.messages):
@@ -1056,13 +1435,17 @@ def main():
                         # Reset flag
                         st.session_state.awaiting_regeneration = False
                         
+                        # Auto-save after regeneration
+                        if is_authenticated() and not st.session_state.demo_mode:
+                            save_chat_history_to_db(st.session_state.username)
+                        
                         # Rerun to display the new message
                         st.rerun()
 
             # Chat input with document selection dropdown
             col1, col2 = st.columns([4, 1])
             with col1:
-                query = st.chat_input("Ask me about the documents...")
+                query = st.chat_input("How may I help you today...")
             
             with col2:
                 # Document filter (optional)
@@ -1087,7 +1470,7 @@ def main():
                 st.session_state.detected_schema = None
                 st.session_state.detected_table = None
                 
-                with st.spinner("Analyzing documentation and web sources..."):
+                with st.spinner("Generating your response. Please wait..."):
                     # Use improved table detection function
                     schema_name, table_name = extract_table_info(query)
                     
@@ -1124,29 +1507,46 @@ def main():
                             "recommendations": None
                         })
                         
+                        # Auto-save after new message
+                        if is_authenticated() and not st.session_state.demo_mode:
+                            save_chat_history_to_db(st.session_state.username)
+                        
                         # Rerun to display the new message and feedback options
                         st.rerun()
 
             # Sidebar buttons
-            if st.sidebar.button("Clear Chat History"):
-                st.session_state.messages = []
-                st.session_state.current_query = None
-                st.session_state.awaiting_regeneration = False
-                st.session_state.query_attempts = {}
-                st.session_state.detected_schema = None
-                st.session_state.detected_table = None
+            # if st.sidebar.button("Clear Chat History"):
+            #     st.session_state.messages = []
+            #     st.session_state.current_query = None
+            #     st.session_state.awaiting_regeneration = False
+            #     st.session_state.query_attempts = {}
+            #     st.session_state.detected_schema = None
+            #     st.session_state.detected_table = None
+                
+                # Also clear from database
+                if is_authenticated() and not st.session_state.demo_mode:
+                    clear_chat_history_db(st.session_state.username)
+                
                 st.rerun()
                 
-            if st.sidebar.button("Clear Feedback Data"):
-                st.session_state.feedback_data = {}
-                if os.path.exists(FEEDBACK_FILE):
-                    os.remove(FEEDBACK_FILE)
-                st.rerun()
+            # if st.sidebar.button("Clear Feedback Data"):
+            #     st.session_state.feedback_data = {}
+            #     if is_authenticated() and not st.session_state.demo_mode:
+            #         user_dir = get_user_data_dir(st.session_state.username)
+            #         feedback_file = user_dir / "feedback_data.json"
+            #         if feedback_file.exists():
+            #             feedback_file.unlink()
+            #     else:
+            #         if os.path.exists(FEEDBACK_FILE):
+            #             os.remove(FEEDBACK_FILE)
+            #     st.rerun()
                 
-            if st.sidebar.button("Reload Documents"):
-                # Reset document data and vectorstore
-                st.session_state.doc_data = None
-                st.session_state.vectorstore = None
-                st.rerun()
+            # if st.sidebar.button("Reload Documents"):
+            #     # Reset document data and vectorstore
+            #     st.session_state.doc_data = None
+            #     st.session_state.vectorstore = None
+            #     st.rerun()
+
 if __name__ == "__main__":
    main()
+
