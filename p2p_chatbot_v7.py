@@ -1,4 +1,29 @@
+import sys
+import pysqlite3  # Add this import before using it
+# Patch sqlite3 with upgraded version
+sys.modules["sqlite3"] = pysqlite3
 import sqlite3  # Now this is the patched one
+print("✅ Patched SQLite version:", sqlite3.sqlite_version)
+import sqlite3  # Now this is the patched one
+import streamlit as st
+import pandas as pd
+import google.generativeai as genai
+import matplotlib.pyplot as plt
+import io
+import os
+import json
+from docx import Document
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import Chroma
+import requests
+from googleapiclient.discovery import build
+import requests
+from bs4 import BeautifulSoup
+import time
+import json
+from urllib.parse import urljoin
+import re
 import streamlit as st
 import pandas as pd
 import google.generativeai as genai
@@ -19,7 +44,6 @@ import hashlib
 import uuid
 import base64
 from PIL import Image
-
 # ------- Authentication System -------
 
 def load_users():
