@@ -770,7 +770,7 @@ def get_embeddings_model(username=None):
         if username is None or not is_authenticated():
             model = HuggingFaceEmbeddings(
                 model_name="all-MiniLM-L6-v2",
-                model_kwargs={'device': 'cuda'},
+                model_kwargs={'device': 'cpu'},
                 encode_kwargs={'normalize_embeddings': True}
             )
         else:
